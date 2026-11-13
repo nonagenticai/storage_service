@@ -19,7 +19,7 @@ dependencies = [
     "clamd>=1.0.2",
     "urllib3>=2.8.0",
     "werkzeug>=3.1.9",
-    "cachetools>=6.2.4",
+    "cachetools>=8.0.0",
     "cryptography>=50.0.0",
     "httpx>=0.27.0",
 ]
