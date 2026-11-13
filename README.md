@@ -1,5 +1,9 @@
 # Storage Service
 
+[![CI](https://github.com/nonagenticai/storage_service/actions/workflows/ci.yml/badge.svg)](https://github.com/nonagenticai/storage_service/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/nonagenticai/storage_service)](https://github.com/nonagenticai/storage_service/releases)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 Centralized FastAPI proxy for MinIO object storage with optional ClamAV virus scanning. Port 8391.
 
 | | |
@@ -224,3 +228,19 @@ resp = httpx.get(
 - ~~**CI build failing**~~ — **resolved / stale.** This described a self-hosted runner losing communication with the server during the Docker image build. The last workflow run on `main` **succeeded (2026-08-26)**. CI runs on ARC self-hosted runner pods scheduled onto nodes labelled `node-role/ci-runner=true` — read the label, never a hardcoded node name.
 - **Schemathesis contract tests disabled** — contract testing step in CI is commented out ("TEMPORARILY DISABLED - schemathesis blocking deploys"). Contract test hooks and fixtures exist in `tests/contract/` but are not exercised in CI.
 - **Node.js 20 deprecation warnings** — GitHub Actions annotations warn that actions/checkout@v4, actions/upload-artifact@v4, and astral-sh/setup-uv@v5 run on Node.js 20 which is deprecated. Forced migration to Node.js 24 coming June 2026.
+
+## Security
+
+Report vulnerabilities privately through the repository's Security tab — see
+[`SECURITY.md`](SECURITY.md). Do not open a public issue for a security problem.
+
+## Contributing
+
+Issues and pull requests are welcome. See
+[`CONTRIBUTING.md`](https://github.com/nonagenticai/.github/blob/main/CONTRIBUTING.md) for the
+organisation-wide rules; setup, test and lint commands are in this README. Commits carry DCO
+sign-off.
+
+## License
+
+Apache-2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
