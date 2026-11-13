@@ -1,0 +1,103 @@
+# ==============================================================================
+# Storage Service - Git Ignore
+# ==============================================================================
+
+# Environment variables (CRITICAL - contains secrets)
+.env
+.env.*
+!.env.example
+.env.backup*
+.env.bak*
+.env.save
+.env.old
+.env.*.local
+*env.*
+certs/
+certs
+certs/*
+*.pem
+
+# Docker compose backups (may contain sensitive configs)
+docker-compose.yml.backup*
+docker-compose.yml.bak*
+docker-compose.yml.old
+docker-compose.yml.save
+docker-compose.yaml.backup*
+docker-compose.yaml.bak*
+
+# Secrets and credentials
+*.pem
+*.key
+*.crt
+credentials.json
+secrets.*
+*_secrets.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+env/
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Data Directories (persistence data stays local)
+data/
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Backup files
+*.bak
+*.backup
+
+# Certificates
+certs/
+.local-ci-commit.txt
+.local-ci-push.txt
+coverage_html/
+01_recent_push_failure.txt
+02_deploy_issues.txt

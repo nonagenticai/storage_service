@@ -1,0 +1,71 @@
+# Local stack: MinIO + the storage proxy.
+#
+#   docker compose up --build
+#   curl localhost:8391/health/live
+#
+# The MinIO console is on http://localhost:9001 (minioadmin / minioadmin).
+# Buckets are created on first use; ALLOWED_BUCKETS controls which names are legal.
+services:
+  minio:
+    # MinIO stopped publishing free community images: `minio/minio` is gone from Docker Hub
+    # (404) and `quay.io/minio/minio` now answers 401. `pgsty/silo` is the community-maintained
+    # drop-in fork — same S3 API, same MINIO_* variables, same `server /data` command, same
+    # /minio/health/live endpoint. Swap in your own S3-compatible store if you prefer.
+    image: pgsty/silo:latest
+    command: server /data --address :9000 --console-address :9001
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  storage-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      SERVICE_NAME: storage-service
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+      PORT: 8391
+      PYTHONPATH: /app/src
+      CORS_ALLOW_ORIGINS: "http://localhost:3000,http://localhost:8921,http://localhost:8556"
+
+      # Auth: a loopback/RFC1918 caller is a trusted peer; keep the middleware on.
+      ENABLE_AUTH: "true"
+      DEFAULT_TENANT_ID: "0198c2d4-7a10-7c3e-8b91-4f6a2d5e8c07"
+
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_SECURE: "false"
+      ALLOWED_BUCKETS: artifacts
+      PROTECTED_BUCKETS: artifacts
+
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: 3310
+      ENABLE_VIRUS_SCANNING: "false"
+      MAX_UPLOAD_SIZE_MB: 500
+    ports:
+      - "8391:8391"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8391/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  minio_data:

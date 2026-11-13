@@ -1,0 +1,46 @@
+# ClamAV Dockerfile for ARM64 (Apple Silicon)
+# Built from source since official images don't support ARM64
+
+FROM alpine:3.19
+
+# Install ClamAV and dependencies
+RUN apk add --no-cache \
+    clamav \
+    clamav-daemon \
+    clamav-libunrar \
+    freshclam \
+    bash \
+    netcat-openbsd \
+    && mkdir -p /var/lib/clamav /var/log/clamav /run/clamav \
+    && chown -R clamav:clamav /var/lib/clamav /var/log/clamav /run/clamav
+
+# Configure ClamAV
+RUN sed -i 's/^#TCPSocket 3310/TCPSocket 3310/' /etc/clamav/clamd.conf \
+    && sed -i 's/^#TCPAddr 127.0.0.1/TCPAddr 0.0.0.0/' /etc/clamav/clamd.conf \
+    && sed -i 's/^#LogTime yes/LogTime yes/' /etc/clamav/clamd.conf \
+    && sed -i 's/^#LogVerbose yes/LogVerbose yes/' /etc/clamav/clamd.conf \
+    && sed -i 's/^#DatabaseDirectory \/var\/lib\/clamav/DatabaseDirectory \/var\/lib\/clamav/' /etc/clamav/clamd.conf
+
+# Configure freshclam
+RUN sed -i 's/^#DatabaseDirectory \/var\/lib\/clamav/DatabaseDirectory \/var\/lib\/clamav/' /etc/clamav/freshclam.conf \
+    && sed -i 's/^#UpdateLogFile \/var\/log\/clamav\/freshclam.log/UpdateLogFile \/var\/log\/clamav\/freshclam.log/' /etc/clamav/freshclam.conf \
+    && sed -i 's/^#LogTime yes/LogTime yes/' /etc/clamav/freshclam.conf \
+    && sed -i 's/^#LogVerbose yes/LogVerbose yes/' /etc/clamav/freshclam.conf \
+    && sed -i 's/^#Checks 24/Checks 24/' /etc/clamav/freshclam.conf
+
+# Copy startup script
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+# Expose ClamAV port
+EXPOSE 3310
+
+# Health check
+HEALTHCHECK --interval=60s --timeout=10s --retries=3 --start-period=600s \
+    CMD nc -z localhost 3310 || exit 1
+
+# Switch to clamav user
+USER clamav
+
+# Start ClamAV
+CMD ["/start.sh"]
