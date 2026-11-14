@@ -12,7 +12,8 @@ Centralized FastAPI proxy for MinIO object storage with optional ClamAV virus sc
 | **Database** | None (stateless proxy) |
 | **Licence** | Apache-2.0 |
 
-This is a source release. `docker compose up` brings up a local MinIO and the proxy; the
+This is a source release. `docker compose up` brings up a local MinIO-compatible object store
+(`pgsty/silo`, a drop-in fork of the discontinued community MinIO images) and the proxy; the
 licence-introspection auth method is optional and needs no licence service on loopback or an
 RFC 1918 network.
 
@@ -31,14 +32,14 @@ Storage Service is stateless -- it holds no data of its own and can be restarted
 - **Credential isolation** — sole holder of MinIO access and secret keys so no other service in the cluster needs storage credentials, reducing the blast radius of a credential leak
 - **ClamAV virus scanning** — scans uploaded files for malware before writing to MinIO, with automatic retry on ClamAV connection failure and a **fail-closed** refusal (HTTP 503) when the scanner never returns a verdict, so an unscanned file is never stored
 - **Bucket lifecycle management** — auto-creates allowed buckets on startup and exposes create/delete endpoints with S3-compatible name validation so consumers do not need to manage bucket provisioning
-- **Protected bucket enforcement** — prevents deletion of critical buckets (kag-ingestion, kag-processed, kag-quarantine, artifacts) through the API so accidental cleanup commands cannot destroy production data
+- **Protected bucket enforcement** — prevents deletion of critical buckets (kag-ingestion, kag-processed, kag-quarantine, artifacts) through the API, with a built-in non-overridable glob floor (`kag-*`, `cp-*`, `*-backups`, and others) so accidental cleanup commands cannot destroy production data
 - **Streaming downloads** — returns files as streaming responses with Content-Disposition headers so large files do not need to be buffered entirely in memory
 - **Upload size limits** — enforces a configurable maximum upload size (default 500 MB) before writing to MinIO so storage quotas are respected at the proxy layer
 - **Component-level health checks** — reports MinIO and ClamAV health independently with latency measurements so Kubernetes probes can detect partial failures and operators can pinpoint which backend is down
 - **License token caching** — caches introspection results for 5 minutes (1000 entries max) so repeated requests from the same tenant do not hit the license service on every call
 - **Trusted network bypass** — allows unauthenticated access from RFC 1918 and loopback addresses so internal cluster services can call storage without carrying tokens. Such a caller is **always** the configured `DEFAULT_TENANT_ID`: a caller-supplied `X-Tenant-Id` that is not a `Bearer` license token is ignored and logged, because an unauthenticated caller must not be able to name its own tenant.
 
-> ⚠️ **Storage is not tenant-authorized.** Authentication is enforced; per-object *authorization* is not. No route compares an object key against the caller's tenant, so any caller admitted by the trusted-network path (the default `TRUSTED_CIDRS` covers the whole `10.0.0.0/8` pod and service CIDR) can read, list and delete every object in every allowed bucket. Closing this needs per-caller license tokens for the six in-cluster callers plus a tenant-scoped key layout; it cannot be fixed inside this service alone. See `ARCHITECTURE.md`.
+> ⚠️ **Storage is not tenant-authorized.** Authentication is enforced; per-object *authorization* is not. No route compares an object key against the caller's tenant, so any caller admitted by the trusted-network path (the default `TRUSTED_CIDRS` covers the whole `10.0.0.0/8` pod and service CIDR) can read, list and delete every object in every allowed bucket. Closing this needs per-caller license tokens for the six in-cluster callers plus a tenant-scoped key layout; it cannot be fixed inside this service alone. See **Architecture** below.
 
 ## Authentication
 
@@ -56,11 +57,13 @@ Public endpoints (no auth): `/`, `/docs`, `/redoc`, `/openapi.json`, `/health/*`
 ## Quick Start
 
 ```bash
-cp .env.example .env
 docker compose up -d
 curl http://localhost:8391/health
 docker compose down -v
 ```
+
+There is no `.env.example`; `docker-compose.yml` supplies its own local development values
+(including the `minioadmin`/`minioadmin` credentials).
 
 ## API Endpoints
 
@@ -111,8 +114,8 @@ All configuration via environment variables.
 | `MINIO_ACCESS_KEY` | *(required)* | MinIO access key (secret, via .env) |
 | `MINIO_SECRET_KEY` | *(required)* | MinIO secret key (secret, via .env) |
 | `MINIO_SECURE` | `false` | Use TLS for MinIO connections |
-| `ALLOWED_BUCKETS` | `artifacts` | Auto-created buckets (comma-separated) |
-| `PROTECTED_BUCKETS` | `artifacts` | Undeletable buckets (comma-separated) |
+| `ALLOWED_BUCKETS` | `kag-ingestion,kag-processed,kag-quarantine,artifacts` | Auto-created buckets (comma-separated) |
+| `PROTECTED_BUCKETS` | `kag-ingestion,kag-processed,kag-quarantine,artifacts` | Undeletable buckets (comma-separated). A built-in glob floor (`kag-*`, `cp-*`, `*-backups`, ...) always applies. |
 | `ENABLE_VIRUS_SCANNING` | `true` | Enable ClamAV scanning on upload |
 | `CLAMAV_HOST` | `clamav` | ClamAV daemon hostname |
 | `CLAMAV_PORT` | `3310` | ClamAV daemon port |
@@ -165,9 +168,9 @@ uv run ruff check src/ tests/              # Lint
 uv run ruff format --check src/ tests/     # Format check
 ```
 
-Coverage threshold: 80% (enforced in pyproject.toml).
+Coverage threshold: 85% (enforced in pyproject.toml).
 
-Unit tests: 9 test files covering auth middleware, config, files, buckets, health, MinIO client, virus scanner, and schemas. Integration tests require a running MinIO instance. Contract tests (Schemathesis) are present but disabled in CI.
+Unit tests: 19 test files covering auth middleware, config, files, buckets, health, MinIO client, virus scanner, notifications, bucket protection, and schemas. Integration tests require a running MinIO instance. Contract tests (Schemathesis) exist under `tests/contract/` but are not run in CI.
 
 ## CI
 
@@ -225,14 +228,13 @@ resp = httpx.get(
 
 ## Known Issues
 
-- ~~**CI build failing**~~ — **resolved / stale.** This described a self-hosted runner losing communication with the server during the Docker image build. The last workflow run on `main` **succeeded (2026-08-26)**. CI runs on ARC self-hosted runner pods scheduled onto nodes labelled `node-role/ci-runner=true` — read the label, never a hardcoded node name.
-- **Schemathesis contract tests disabled** — contract testing step in CI is commented out ("TEMPORARILY DISABLED - schemathesis blocking deploys"). Contract test hooks and fixtures exist in `tests/contract/` but are not exercised in CI.
-- **Node.js 20 deprecation warnings** — GitHub Actions annotations warn that actions/checkout@v4, actions/upload-artifact@v4, and astral-sh/setup-uv@v5 run on Node.js 20 which is deprecated. Forced migration to Node.js 24 coming June 2026.
+- **Contract tests are not run in CI** — `tests/contract/` and the optional `schemathesis` extra
+  exist, but `.github/workflows/ci.yml` has no contract-test step.
 
 ## Security
 
-Report vulnerabilities privately through the repository's Security tab — see
-[`SECURITY.md`](SECURITY.md). Do not open a public issue for a security problem.
+Report vulnerabilities privately through the repository's Security tab. Do not open a public
+issue for a security problem.
 
 ## Contributing
 
@@ -257,4 +259,4 @@ enforcement point). Neither is required to run this code.
 
 ## License
 
-Apache-2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+Apache-2.0 — see [`LICENSE`](LICENSE).
