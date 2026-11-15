@@ -93,4 +93,4 @@ python-version = "3.14"
 extra-paths = ["src"]
 
 [tool.ty.rules]
-unresolved-import = "ignore"
+import-not-found = "ignore"
