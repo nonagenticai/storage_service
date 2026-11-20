@@ -12,7 +12,7 @@ ENV UV_SYSTEM_PYTHON=1 \
 WORKDIR /app
 
 # Multi-arch compatible uv binary (pinned for ARM64 compatibility)
-COPY --from=ghcr.io/astral-sh/uv:0.10.10 /uv /uvx /usr/local/bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.9 /uv /uvx /usr/local/bin/
 
 
 # -----------------------------
